@@ -69,19 +69,22 @@ def mqtt_connect():
 		client.disconnect()
 
 
-def on_message(topic, message, song):
+def on_message(topic, message):
 	""""""
 	print(topic, message)
 
-	msg = message.strip().decode('utf-8')
+	topic = message.strip().decode('utf-8')
+	msg = topic.split(":")[0]
+	song = topic.split(":")[-1]
 
 	if msg == "feed":
-		play_song(song)
-		time.sleep(1)
 	 	client.publish("cat/last_fed", "Feeding...")
 	 	done_payload = 'Done feeding!'
 
 	 	try:
+			if song:
+				play_song(song)
+				time.sleep(1)
 			open_and_close()
 		except:
 			done_payload = 'Error. Bad message format. Payload was: %s' % msg
