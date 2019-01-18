@@ -1,6 +1,7 @@
 import gc
 from credentials import SSID
 from credentials import SSID_PASSWORD
+from credentials import STATIC_IP
 
 gc.collect()
 
@@ -11,6 +12,14 @@ def connect():
 	if not sta_if.isconnected():
 		print ('connecting to network...')
 		sta_if.active(True)
+		if STATIC_IP:
+			sta_if.config(
+				STATIC_IP,
+				"255.255.255.0",
+				"192.168.1.1",
+				"8.8.8.8"
+				)
+			
 		sta_if.connect(SSID, SSID_PASSWORD)
 		while not sta_if.isconnected():
 			pass
