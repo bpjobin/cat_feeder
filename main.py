@@ -50,7 +50,12 @@ def mqtt_connect():
 
 	client.set_callback(on_message)
 	print("Connecting MQTT as clean session")
-	client.set_last_will("cat_feeder/status", "Offline")
+	client.set_last_will(
+		"cat_feeder/status",
+		"Offline",
+		retain=True
+		)
+
 	client.connect()
 	client.subscribe(TOPIC)
 	print("Connected to %s, subscribed to %s topic" % (
@@ -59,7 +64,6 @@ def mqtt_connect():
 		)
 	)
 	client.publish("cat_feeder/status", "Connected", retain=True)
-	client.publish("cat_feeder/status", "Ready", retain=True)
 
 	try:
 		while 1:
@@ -82,7 +86,7 @@ def on_message(topic, message):
 	 	done_payload = 'Done feeding!'
 
 	 	try:
-			if song:
+			if song != "None":
 				play_song(song)
 				time.sleep(1)
 			open_and_close()
