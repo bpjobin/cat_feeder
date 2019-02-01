@@ -12,7 +12,7 @@ from credentials import MQTT_USERNAME
 from credentials import MQTT_PASSWORD
 
 TOPIC = "cat_feeder/feed"
-CLIENT_ID = ubinascii.hexlify(unique_id())
+CLIENT_ID = "cat_feeder"
 
 global closed_position
 closed_position = 75
