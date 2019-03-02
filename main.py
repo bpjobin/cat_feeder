@@ -9,6 +9,10 @@ from credentials import MQTT_SERVER
 from credentials import MQTT_USERNAME
 from credentials import MQTT_PASSWORD
 
+
+# TODO: convert this to a Class and add self.callback to use as an interupt for the button
+
+
 TOPIC = "cat_feeder_test/feed"
 STATUS_TOPIC = "cat_feeder_test/status"
 LAST_FED_TOPIC = "cat/last_fed"
@@ -25,16 +29,12 @@ servo_buzz = PWM(
 	freq=50,
 	duty=CLOSED_POSITION
 	)
-# time.sleep(0.5)
+
 servo_tuxedo = PWM(
 	Pin(5),
 	freq=50,
 	duty=CLOSED_POSITION
 	)
-
-# servo_buzz.duty(CLOSED_POSITION)
-# time.sleep(0.5)
-# servo_tuxedo.duty(CLOSED_POSITION)
 
 
 def mqtt_connect():
