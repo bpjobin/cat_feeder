@@ -9,27 +9,32 @@ from credentials import MQTT_SERVER
 from credentials import MQTT_USERNAME
 from credentials import MQTT_PASSWORD
 
-TOPIC = "cat_feeder/feed"
-CLIENT_ID = "cat_feeder"
+TOPIC = "cat_feeder_test/feed"
+STATUS_TOPIC = "cat_feeder_test/status"
+LAST_FED_TOPIC = "cat/last_fed"
+DONE_TOPIC = "cat_feeder/done_feeding"
 
-global closed_position
-closed_position = 75
+CLIENT_ID = "cat_feeder_test"
+
+CLOSED_POSITION = 75
+
+button = Pin(14, Pin.IN, Pin.PULL_UP)
 
 servo_buzz = PWM(
-	Pin(14),
-	freq=50,
-	duty=closed_position
-	)
-time.sleep(0.5)
-servo_tuxedo = PWM(
 	Pin(12),
 	freq=50,
-	duty=closed_position
+	duty=CLOSED_POSITION
+	)
+# time.sleep(0.5)
+servo_tuxedo = PWM(
+	Pin(5),
+	freq=50,
+	duty=CLOSED_POSITION
 	)
 
-servo_buzz.duty(closed_position)
-time.sleep(0.5)
-servo_tuxedo.duty(closed_position)
+# servo_buzz.duty(CLOSED_POSITION)
+# time.sleep(0.5)
+# servo_tuxedo.duty(CLOSED_POSITION)
 
 
 def mqtt_connect():
@@ -47,7 +52,7 @@ def mqtt_connect():
 	client.set_callback(on_message)
 	print("Connecting MQTT")
 	client.set_last_will(
-		"cat_feeder/status",
+		STATUS_TOPIC,
 		"Offline",
 		retain=True
 		)
@@ -59,11 +64,13 @@ def mqtt_connect():
 		TOPIC
 		)
 	)
-	client.publish("cat_feeder/status", "Connected", retain=True)
+	client.publish(STATUS_TOPIC, "Connected", retain=True)
 
 	try:
 		while 1:
 			client.wait_msg()
+			if button.value() == 1:
+				open_and_close()
 
 	finally:
 		client.disconnect()
@@ -76,7 +83,7 @@ def on_message(topic, message):
 	msg = message.strip().decode('utf-8')
 
 	if msg == "feed":
-		client.publish("cat/last_fed", "Feeding...")
+		client.publish(LAST_FED_TOPIC, "Feeding...")
 		done_payload = 'Done feeding!'
 
 		try:
@@ -84,23 +91,28 @@ def on_message(topic, message):
 		except:
 			done_payload = 'Error. Bad message format. Payload was: %s' % msg
 		
-		client.publish(
-		"cat_feeder/done_feeding",
-		done_payload
-		)
-		
-		print("Done feeding!")
+def done_feeding():
+	""""""
+	client.publish(
+	DONE_TOPIC,
+	done_payload
+	)
+	
+	print("Done feeding!")
 
 
 def open_and_close():
 	""""""
 	servo_buzz.duty(47) # petite croquette --> 47
-	time.sleep(0.25) # petite croquette --> 0.21
-	servo_buzz.duty(closed_position)
+	time.sleep(0.35) # petite croquette --> 0.21
+	servo_buzz.duty(CLOSED_POSITION)
+
+	time.sleep(1)
 
 	servo_tuxedo.duty(45)
 	time.sleep(0.365)
-	servo_tuxedo.duty(closed_position)
+	servo_tuxedo.duty(CLOSED_POSITION)
 
+	done_feeding()
 
 mqtt_connect()
