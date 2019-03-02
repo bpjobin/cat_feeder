@@ -67,7 +67,7 @@ def mqtt_connect():
 	client.publish(STATUS_TOPIC, "Connected", retain=True)
 
 	try:
-		while 1:
+		while True:
 			client.wait_msg()
 			if button.value() == 1:
 				open_and_close()
