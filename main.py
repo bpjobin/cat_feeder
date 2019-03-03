@@ -24,6 +24,7 @@ CLIENT_ID = "cat_feeder_test"
 class CatFeeder(object):
   def __init__(*args, **kwargs):
     self._button = Pin(14, Pin.IN, Pin.PULL_UP)
+    
     self._servo_buzz = Feeder(
                     pin_servo=12,
                     pin_distance_sensor=XXX,
@@ -37,11 +38,13 @@ class CatFeeder(object):
                     pause=0.365,
                     )
     
+    self._button.irq(
+      handler=self.button_pressed,
+      trigger=Pin.IRQ_RISING
+    )
+    
     self.mqtt_connect()
     
-    # TODO: Set callback according to button Pin!
-    self.callback(self.button_pressed)
-
   def mqtt_connect():
     """"""
     print("Connecting to MQTT server...")
@@ -77,8 +80,8 @@ class CatFeeder(object):
     finally:
       client.disconnect()
 
-  def button_pressed(self):
-    if self._button.value() == 1:
+  def button_pressed(self, pin):
+    if pin.value() == 1:
       self._servo_tuxedo.feed()
       self._servo_buzz.feed()
       self.done_feeding()
@@ -139,7 +142,7 @@ class Feeder(object):
   
   @property
   def open_position(self):
-    reutnr self._open_position
+    return self._open_position
     
   @property
   def pause_open(self):
