@@ -20,99 +20,139 @@ DONE_TOPIC = "cat_feeder/done_feeding"
 
 CLIENT_ID = "cat_feeder_test"
 
-CLOSED_POSITION = 75
 
-button = Pin(14, Pin.IN, Pin.PULL_UP)
+class CatFeeder(object):
+  def __init__(*args, **kwargs):
+    self._button = Pin(14, Pin.IN, Pin.PULL_UP)
+    self._servo_buzz = Feeder(
+                    pin_servo=12,
+                    pin_distance_sensor=XXX,
+                    open=47,
+                    pause=0.35,
+                    )
+    self._servo_tuxedo = Feeder(
+                    pin_servo=5,
+                    pin_distance_sensor=XXX,
+                    open=45,
+                    pause=0.365,
+                    )
+    
+    self.mqtt_connect()
+    
+    # TODO: Set callback according to button Pin!
+    self.callback(self.button_pressed)
 
-servo_buzz = PWM(
-	Pin(12),
-	freq=50,
-	duty=CLOSED_POSITION
-	)
+  def mqtt_connect():
+    """"""
+    print("Connecting to MQTT server...")
 
-servo_tuxedo = PWM(
-	Pin(5),
-	freq=50,
-	duty=CLOSED_POSITION
-	)
+    client = MQTTClient(
+      CLIENT_ID,
+      MQTT_SERVER,
+      user=MQTT_USERNAME,
+      password=MQTT_PASSWORD
+      )
 
+    client.set_callback(on_message)
+    print("Connecting MQTT")
+    client.set_last_will(
+      STATUS_TOPIC,
+      "Offline",
+      retain=True
+      )
 
-def mqtt_connect():
-	""""""
-	print("Connecting to MQTT server...")
+    client.connect()
+    client.subscribe(TOPIC)
+    print("Connected to %s, subscribed to %s topic" % (
+      MQTT_SERVER,
+      TOPIC
+      )
+    )
+    client.publish(STATUS_TOPIC, "Connected", retain=True)
 
-	global client
-	client = MQTTClient(
-		CLIENT_ID,
-		MQTT_SERVER,
-		user=MQTT_USERNAME,
-		password=MQTT_PASSWORD
-		)
+    try:
+      while True:
+        client.wait_msg()
 
-	client.set_callback(on_message)
-	print("Connecting MQTT")
-	client.set_last_will(
-		STATUS_TOPIC,
-		"Offline",
-		retain=True
-		)
+    finally:
+      client.disconnect()
 
-	client.connect()
-	client.subscribe(TOPIC)
-	print("Connected to %s, subscribed to %s topic" % (
-		MQTT_SERVER,
-		TOPIC
-		)
-	)
-	client.publish(STATUS_TOPIC, "Connected", retain=True)
+  def button_pressed(self):
+    if self._button.value() == 1:
+      self._servo_tuxedo.feed()
+      self._servo_buzz.feed()
+      self.done_feeding()
+  
+  def on_message(topic, message):
+    """"""
+    print(topic, message)
 
-	try:
-		while True:
-			client.wait_msg()
-			if button.value() == 1:
-				open_and_close()
+    msg = message.strip().decode('utf-8')
 
-	finally:
-		client.disconnect()
+    if msg == "feed":
+      client.publish(LAST_FED_TOPIC, "Feeding...")
+      done_payload = 'Done feeding!'
 
+      try:
+        self._servo_tuxedo.feed()
+        self._servo_buzz.feed()
+        self.done_feeding()
+      except:
+        done_payload = 'Error. Bad message format. Payload was: %s' % msg
 
-def on_message(topic, message):
-	""""""
-	print(topic, message)
+  
+  def done_feeding():
+    """"""
+    client.publish(
+    DONE_TOPIC,
+    done_payload
+    )
 
-	msg = message.strip().decode('utf-8')
-
-	if msg == "feed":
-		client.publish(LAST_FED_TOPIC, "Feeding...")
-		done_payload = 'Done feeding!'
-
-		try:
-			open_and_close()
-		except:
-			done_payload = 'Error. Bad message format. Payload was: %s' % msg
-		
-def done_feeding():
-	""""""
-	client.publish(
-	DONE_TOPIC,
-	done_payload
-	)
-	
-	print("Done feeding!")
+    print("Done feeding!")
 
 
-def open_and_close():
-	""""""
-	servo_buzz.duty(47) # petite croquette --> 47
-	time.sleep(0.35) # petite croquette --> 0.21
-	servo_buzz.duty(CLOSED_POSITION)
+class Feeder(object):
+  def __init__(
+    self,
+    pin_servo=None,
+    pin_distance_sensor,
+    open=47,
+    pause=0.3,
+    *args,
+    **kwargs
+    ):
+    
+    self._open_position = open
+    self._pause_open = pause
+    self._close_position = 75
+    
+    self._servo = PWM(Pin(pin_servo), freq=50, duty=self._close_position)
+    self._distance_sensor = Pin(pin_distance_sensor, Pin.IN)
+    
+  @property
+  def servo(self):
+    return self._servo
+  
+  @property
+  def distance_sensor(self):
+    return self._distance_sensor
+  
+  @property
+  def open_position(self):
+    reutnr self._open_position
+    
+  @property
+  def pause_open(self):
+    return self._pause_open
+  
+  def get_remaining_food(self):
+    multiplier = 1
+    return multiplier
+  
+  def feed():
+    """"""
+    multiplier = self.get_remaining_food()
+    self.servo.duty(self.open_position * multiplier)
+    time.sleep(self.pause_open)
+    self.servo.duty(self._close_position)
 
-	time.sleep(1)
-
-	servo_tuxedo.duty(45)
-	time.sleep(0.365)
-	servo_tuxedo.duty(CLOSED_POSITION)
-
-	done_feeding()
-
-mqtt_connect()
