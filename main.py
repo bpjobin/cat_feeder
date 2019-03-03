@@ -1,29 +1,23 @@
 import time
-import ubinascii
 from machine import Pin
 from machine import PWM
-from machine import unique_id
 from umqtt.robust import MQTTClient
 
 from credentials import MQTT_SERVER
 from credentials import MQTT_USERNAME
 from credentials import MQTT_PASSWORD
 
-
-# TODO: convert this to a Class and add self.callback to use as an interupt for the button
-
-
-TOPIC = "cat_feeder_test/feed"
-STATUS_TOPIC = "cat_feeder_test/status"
-LAST_FED_TOPIC = "cat/last_fed"
-DONE_TOPIC = "cat_feeder/done_feeding"
-
 CLIENT_ID = "cat_feeder_test"
+
+TOPIC = CLIENT_ID + "/feed"
+STATUS_TOPIC = CLIENT_ID + "/status"
+LAST_FED_TOPIC = CLIENT_ID + "/last_fed"
+DONE_TOPIC = CLIENT_ID + "/done_feeding"
 
 
 class CatFeeder(object):
   def __init__(*args, **kwargs):
-    self._button = Pin(14, Pin.IN, Pin.PULL_UP)
+    self._button = Pin(id=14, mode=Pin.IN, pull=Pin.PULL_UP)
     
     self._servo_buzz = Feeder(
                     pin_servo=12,
@@ -131,22 +125,6 @@ class Feeder(object):
     
     self._servo = PWM(Pin(pin_servo), freq=50, duty=self._close_position)
     self._distance_sensor = Pin(pin_distance_sensor, Pin.IN)
-    
-  @property
-  def servo(self):
-    return self._servo
-  
-  @property
-  def distance_sensor(self):
-    return self._distance_sensor
-  
-  @property
-  def open_position(self):
-    return self._open_position
-    
-  @property
-  def pause_open(self):
-    return self._pause_open
   
   def get_remaining_food(self):
     multiplier = 1
@@ -155,7 +133,10 @@ class Feeder(object):
   def feed():
     """"""
     multiplier = self.get_remaining_food()
-    self.servo.duty(self.open_position * multiplier)
-    time.sleep(self.pause_open)
+    self.servo.duty(self._open_position * multiplier)
+    time.sleep(self._pause_open)
     self.servo.duty(self._close_position)
 
+
+if __name__ == "__main__":
+  cf = CatFeeder()
