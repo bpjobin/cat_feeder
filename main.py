@@ -23,7 +23,8 @@ class CatFeeder(object):
 
         self._servo_buzz = Feeder(
                         pin_servo=12,
-                        # pin_distance_sensor=XXX,
+                        trigger=2,
+                        echo=0,
                         open_gate=47,
                         pause=0.35,
                         )
@@ -89,8 +90,8 @@ class CatFeeder(object):
 
     def button_pressed(self, pin):
         if pin.value() == 1:
-            self._servo_tuxedo.feed()
-            self._servo_buzz.feed()
+            self._servo_tuxedo.feed(mute=True)
+            self._servo_buzz.feed(mute=True)
             self.done_feeding()
 
     def on_message(self, topic, message):
@@ -124,7 +125,8 @@ class Feeder(object):
     def __init__(
         self,
         pin_servo=None,
-        pin_distance_sensor=None,
+        trigger=None,
+        echo=None,
         open_gate=47,
         pause=0.3,
     ):
@@ -135,20 +137,53 @@ class Feeder(object):
 
         self._servo = PWM(Pin(pin_servo), freq=50, duty=self._close_position)
 
-        if pin_distance_sensor:
-            self._distance_sensor = Pin(pin_distance_sensor, Pin.IN)
+        self._trigger = trigger
+        if self._trigger:
+            self._distance_trigger = Pin(trigger, Pin.OUT)
+            self._distance_echo = Pin(echo, Pin.IN)
 
-    @staticmethod
-    def get_remaining_food():
-        multiplier = 1
+    def distance_in_cm(self):
+        start = 0
+        end = 0
+
+        self._distance_trigger.on()
+        time.sleep_us(10)
+        self._distance_trigger.off()
+
+        while self._distance_echo.value() == 0:
+            start = time.ticks_us()
+
+        while self._distance_echo.value() == 1:
+            end = time.ticks_us()
+
+        diff = time.ticks_diff(start, end)
+
+        # Calc the duration of the recieved pulse, divide the result by
+        # 2 (round-trip) and divide it by 29 (the speed of sound is
+        # 340 m/s and that is 29 us/cm).
+        dist_in_cm = (diff / 2) / 29
+
+        return -dist_in_cm
+
+    def get_remaining_food(self):
+        """"""
+        if self._trigger is None:
+            return 1
+
+        dist = self.distance_in_cm()
+        print('Distance is %s cm' % dist)
+
+        multiplier = float(dist) / 12
         return multiplier
 
-    def feed(self):
+    def feed(self, mute=False):
         """"""
         multiplier = self.get_remaining_food()
-        self._servo.duty(self._open_position * multiplier)
-        time.sleep(self._pause_open)
-        self._servo.duty(self._close_position)
+        print('Pausing... : %s sec' % (self._pause_open * multiplier))
+        if not mute:
+            self._servo.duty(self._open_position)
+            time.sleep(self._pause_open * multiplier)
+            self._servo.duty(self._close_position)
 
 
 if __name__ == "__main__":
