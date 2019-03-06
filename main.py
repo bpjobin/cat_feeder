@@ -136,10 +136,10 @@ class Feeder(object):
         self._pause_open = pause
         self._pause_open_max = 0.8
         self._close_position = 77
+        self._trigger = trigger
 
         self._servo = PWM(Pin(pin_servo), freq=50, duty=self._close_position)
 
-        self._trigger = trigger
         if self._trigger:
             self._distance_trigger = Pin(trigger, Pin.OUT)
             self._distance_echo = Pin(echo, Pin.IN)
@@ -169,6 +169,9 @@ class Feeder(object):
 
     def get_opening_ratio(self):
         """"""
+        if not self._trigger:
+            return self._open_position, self._pause_open
+
         dist = self.distance_in_cm()
 
         tank_full = 1
@@ -179,7 +182,7 @@ class Feeder(object):
         pause_range = self._pause_open_max - self._pause_open
 
         opening_ratio = (((dist - tank_full) * opening_range) / quantity_range) + self._open_position
-        pause_ratio = (((dist - tank_full) * self._pause_open_max / pause_range) + self._pause_open)
+        pause_ratio = ((dist - tank_full) * self._pause_open_max / pause_range) + self._pause_open
 
         return opening_ratio, pause_ratio
 
@@ -188,6 +191,7 @@ class Feeder(object):
         open_ratio, pause_ratio = self.get_opening_ratio()
         print('Opening to: %s\n' % open_ratio)
         print('Pausing for: %s sec\n' % pause_ratio)
+
         if not mute:
             self._servo.duty(open_ratio)
             time.sleep(pause_ratio)
