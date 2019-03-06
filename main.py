@@ -132,8 +132,10 @@ class Feeder(object):
     ):
 
         self._open_position = open_gate
+        self._open_position_max = 38
         self._pause_open = pause
-        self._close_position = 75
+        self._pause_open_max = 0.8
+        self._close_position = 77
 
         self._servo = PWM(Pin(pin_servo), freq=50, duty=self._close_position)
 
@@ -165,24 +167,30 @@ class Feeder(object):
 
         return -dist_in_cm
 
-    def get_remaining_food(self):
+    def get_opening_ratio(self):
         """"""
-        if self._trigger is None:
-            return 1
-
         dist = self.distance_in_cm()
-        print('Distance is %s cm' % dist)
 
-        multiplier = float(dist) / 12
-        return multiplier
+        tank_full = 1
+        tank_empty = 25
+
+        quantity_range = tank_empty - tank_full
+        opening_range = self._open_position_max - self._open_position
+        pause_range = self._pause_open_max - self._pause_open
+
+        opening_ratio = (((dist - tank_full) * opening_range) / quantity_range) + self._open_position
+        pause_ratio = (((dist - tank_full) * self._pause_open_max / pause_range) + self._pause_open)
+
+        return opening_ratio, pause_ratio
 
     def feed(self, mute=False):
         """"""
-        multiplier = self.get_remaining_food()
-        print('Pausing... : %s sec' % (self._pause_open * multiplier))
+        open_ratio, pause_ratio = self.get_opening_ratio()
+        print('Opening to: %s\n' % open_ratio)
+        print('Pausing for: %s sec\n' % pause_ratio)
         if not mute:
-            self._servo.duty(self._open_position)
-            time.sleep(self._pause_open * multiplier)
+            self._servo.duty(open_ratio)
+            time.sleep(pause_ratio)
             self._servo.duty(self._close_position)
 
 
