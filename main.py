@@ -89,7 +89,8 @@ class CatFeeder(object):
             self._client.disconnect()
 
     def button_pressed(self, pin):
-        if pin.value() == 1:
+        if pin.value():
+            time.sleep_ms(300)
             self._servo_tuxedo.feed(mute=True)
             self._servo_buzz.feed(mute=True)
             self.done_feeding()
@@ -118,7 +119,7 @@ class CatFeeder(object):
           self._done_payload
         )
 
-        print("Done feeding!")
+        print("Done feeding!\n\n")
 
 
 class Feeder(object):
@@ -173,6 +174,9 @@ class Feeder(object):
             return self._open_position, self._pause_open
 
         dist = self.distance_in_cm()
+        print("Distance: %s cm" % dist)
+        if dist > 25:
+            dist = 25
 
         tank_full = 1
         tank_empty = 25
@@ -182,14 +186,14 @@ class Feeder(object):
         pause_range = self._pause_open_max - self._pause_open
 
         opening_ratio = (((dist - tank_full) * opening_range) / quantity_range) + self._open_position
-        pause_ratio = ((dist - tank_full) * self._pause_open_max / pause_range) + self._pause_open
+        pause_ratio = ((dist - tank_full) * pause_range / quantity_range) + self._pause_open
 
         return opening_ratio, pause_ratio
 
     def feed(self, mute=False):
         """"""
         open_ratio, pause_ratio = self.get_opening_ratio()
-        print('Opening to: %s\n' % open_ratio)
+        print('Opening to: %s' % open_ratio)
         print('Pausing for: %s sec\n' % pause_ratio)
 
         if not mute:
