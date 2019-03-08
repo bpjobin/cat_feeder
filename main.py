@@ -13,6 +13,8 @@ TOPIC = CLIENT_ID + "/feed"
 STATUS_TOPIC = CLIENT_ID + "/status"
 LAST_FED_TOPIC = CLIENT_ID + "/last_fed"
 DONE_TOPIC = CLIENT_ID + "/done_feeding"
+QTY_BUZZ_TOPIC = CLIENT_ID + "/buzz_quantity"
+QTY_TUXEDO_TOPIC = CLIENT_ID + "/tuxedo_quantity"
 
 
 class CatFeeder(object):
@@ -118,6 +120,14 @@ class CatFeeder(object):
           DONE_TOPIC,
           self._done_payload
         )
+        self._client.publish(
+            QTY_BUZZ_TOPIC,
+            self._servo_buzz.remaining_quantity
+        )
+        self._client.publish(
+            QTY_TUXEDO_TOPIC,
+            self._servo_tuxedo.remaining_quantity
+        )
 
         print("Done feeding!\n\n")
 
@@ -138,12 +148,23 @@ class Feeder(object):
         self._pause_open_max = 0.8
         self._close_position = 77
         self._trigger = trigger
+        self._remaining_quantity = None
+        self._full_quantity = 1
+        self._empty_quantity = 25
 
         self._servo = PWM(Pin(pin_servo), freq=50, duty=self._close_position)
 
         if self._trigger:
             self._distance_trigger = Pin(trigger, Pin.OUT)
             self._distance_echo = Pin(echo, Pin.IN)
+
+    @property
+    def remaining_quantity(self):
+        return self._remaining_quantity
+
+    @remaining_quantity.setter
+    def remaining_quantity(self, value):
+        self._remaining_quantity = value
 
     def distance_in_cm(self):
         start = 0
@@ -166,6 +187,7 @@ class Feeder(object):
         # 340 m/s and that is 29 us/cm).
         dist_in_cm = (diff / 2) / 29
 
+        self.remaining_quantity = -dist_in_cm
         return -dist_in_cm
 
     def get_opening_ratio(self):
@@ -175,18 +197,15 @@ class Feeder(object):
 
         dist = self.distance_in_cm()
         print("Distance: %s cm" % dist)
-        if dist > 25:
-            dist = 25
+        if dist > self._empty_quantity:
+            dist = self._empty_quantity
 
-        tank_full = 1
-        tank_empty = 25
-
-        quantity_range = tank_empty - tank_full
+        quantity_range = self._empty_quantity - self._full_quantity
         opening_range = self._open_position_max - self._open_position
         pause_range = self._pause_open_max - self._pause_open
 
-        opening_ratio = (((dist - tank_full) * opening_range) / quantity_range) + self._open_position
-        pause_ratio = ((dist - tank_full) * pause_range / quantity_range) + self._pause_open
+        opening_ratio = (((dist - self._full_quantity) * opening_range) / quantity_range) + self._open_position
+        pause_ratio = ((dist - self._full_quantity) * pause_range / quantity_range) + self._pause_open
 
         return opening_ratio, pause_ratio
 
