@@ -160,7 +160,13 @@ class Feeder(object):
 
     @property
     def remaining_quantity(self):
-        return self._remaining_quantity
+        """"""
+        result = self.map_range(
+            self._remaining_quantity,
+            (self._empty_quantity, self._full_quantity),
+            (0, 100)
+        )
+        return str(result)
 
     @remaining_quantity.setter
     def remaining_quantity(self, value):
@@ -200,14 +206,33 @@ class Feeder(object):
         if dist > self._empty_quantity:
             dist = self._empty_quantity
 
-        quantity_range = self._empty_quantity - self._full_quantity
-        opening_range = self._open_position_max - self._open_position
-        pause_range = self._pause_open_max - self._pause_open
+        opening_ratio = self.map_range(
+            dist,
+            (self._empty_quantity, self._full_quantity),
+            (self._open_position_max, self._open_position)
+        )
+        pause_ratio = self.map_range(
+            dist,
+            (self._pause_open, self._pause_open_max),
+            (self._open_position_max, self._open_position)
+        )
 
-        opening_ratio = (((dist - self._full_quantity) * opening_range) / quantity_range) + self._open_position
-        pause_ratio = ((dist - self._full_quantity) * pause_range / quantity_range) + self._pause_open
+        if pause_ratio > 2:
+            pause_ratio = 2
 
         return opening_ratio, pause_ratio
+
+    @staticmethod
+    def map_range(value, old_range, new_range):
+        """"""
+        old_range_min, old_range_max = old_range
+        old_range = old_range[0] - old_range[1]
+        new_range_min, new_range_max = new_range
+        new_range = new_range[0] - new_range[1]
+
+        new_value = ((value - old_range_min) * new_range / old_range) + new_range_min
+
+        return new_value
 
     def feed(self, mute=False):
         """"""
