@@ -24,25 +24,25 @@ class CatFeeder(object):
         self._button = Pin(14, mode=Pin.IN, pull=Pin.PULL_UP)
 
         self._servo_buzz = Feeder(
-                        pin_servo=12,
-                        trigger=2,
-                        echo=0,
-                        open_gate=47,
-                        pause=0.35,
-                        )
+            pin_servo=12,
+            trigger=2,
+            echo=0,
+            open_gate=47,
+            pause=0.35,
+        )
 
         self._servo_tuxedo = Feeder(
-                        pin_servo=5,
-                        # pin_distance_sensor=XXX,
-                        open_gate=45,
-                        pause=0.365,
-                        )
+            pin_servo=5,
+            # pin_distance_sensor=XXX,
+            open_gate=45,
+            pause=0.365,
+        )
 
         print('Instancing button and servos.')
 
         self._button.irq(
-          handler=self.button_pressed,
-          trigger=Pin.IRQ_RISING
+            handler=self.button_pressed,
+            trigger=Pin.IRQ_RISING
         )
 
         print('Setting IRQ.')
@@ -60,7 +60,7 @@ class CatFeeder(object):
             MQTT_SERVER,
             user=MQTT_USERNAME,
             password=MQTT_PASSWORD
-          )
+        )
 
         self._client.set_callback(self.on_message)
 
@@ -70,17 +70,17 @@ class CatFeeder(object):
             STATUS_TOPIC,
             "Offline",
             retain=True
-          )
+        )
 
         self._client.connect()
 
         self._client.subscribe(TOPIC)
 
         print("Connected to %s, subscribed to %s topic" % (
-                MQTT_SERVER,
-                TOPIC
-            )
+            MQTT_SERVER,
+            TOPIC
         )
+              )
 
         self._client.publish(STATUS_TOPIC, "Connected", retain=True)
 
@@ -93,8 +93,8 @@ class CatFeeder(object):
     def button_pressed(self, pin):
         if pin.value():
             time.sleep_ms(300)
-            self._servo_tuxedo.feed(mute=True)
-            self._servo_buzz.feed(mute=True)
+            self._servo_tuxedo.feed()
+            self._servo_buzz.feed()
             self.done_feeding()
 
     def on_message(self, topic, message):
@@ -117,8 +117,8 @@ class CatFeeder(object):
     def done_feeding(self):
         """"""
         self._client.publish(
-          DONE_TOPIC,
-          self._done_payload
+            DONE_TOPIC,
+            self._done_payload
         )
         self._client.publish(
             QTY_BUZZ_TOPIC,
@@ -134,12 +134,12 @@ class CatFeeder(object):
 
 class Feeder(object):
     def __init__(
-        self,
-        pin_servo=None,
-        trigger=None,
-        echo=None,
-        open_gate=47,
-        pause=0.3,
+            self,
+            pin_servo=None,
+            trigger=None,
+            echo=None,
+            open_gate=47,
+            pause=0.3,
     ):
 
         self._open_position = open_gate
@@ -151,6 +151,7 @@ class Feeder(object):
         self._remaining_quantity = None
         self._full_quantity = 1
         self._empty_quantity = 25
+        self._distance_cm = None
 
         self._servo = PWM(Pin(pin_servo), freq=50, duty=self._close_position)
 
@@ -161,16 +162,29 @@ class Feeder(object):
     @property
     def remaining_quantity(self):
         """"""
+        if not self._trigger:
+            return str(-1)
+
         result = self.map_range(
-            self._remaining_quantity,
+            self.distance_cm,
             (self._empty_quantity, self._full_quantity),
             (0, 100)
         )
+
+        print('Full at %s%s.' % (result, "%"))
         return str(result)
 
     @remaining_quantity.setter
     def remaining_quantity(self, value):
         self._remaining_quantity = value
+
+    @property
+    def distance_cm(self):
+        return self._distance_cm
+
+    @distance_cm.setter
+    def distance_cm(self, value):
+        self._distance_cm = value
 
     def distance_in_cm(self):
         start = 0
@@ -193,8 +207,11 @@ class Feeder(object):
         # 340 m/s and that is 29 us/cm).
         dist_in_cm = (diff / 2) / 29
 
-        self.remaining_quantity = -dist_in_cm
-        return -dist_in_cm
+        self.distance_cm = -dist_in_cm
+        print("Distance: %s cm." % self.distance_cm)
+        if self.distance_cm > self._empty_quantity:
+            self.distance_cm = self._empty_quantity
+        return self.distance_cm
 
     def get_opening_ratio(self):
         """"""
@@ -202,9 +219,6 @@ class Feeder(object):
             return self._open_position, self._pause_open
 
         dist = self.distance_in_cm()
-        print("Distance: %s cm" % dist)
-        if dist > self._empty_quantity:
-            dist = self._empty_quantity
 
         opening_ratio = self.map_range(
             dist,
@@ -213,8 +227,8 @@ class Feeder(object):
         )
         pause_ratio = self.map_range(
             dist,
-            (self._pause_open, self._pause_open_max),
-            (self._open_position_max, self._open_position)
+            (self._empty_quantity, self._full_quantity),
+            (self._pause_open, self._pause_open_max)
         )
 
         if pause_ratio > 2:
@@ -225,26 +239,26 @@ class Feeder(object):
     @staticmethod
     def map_range(value, old_range, new_range):
         """"""
-        old_range_min, old_range_max = old_range
+        old_range_max, old_range_min = old_range
         old_range = old_range[0] - old_range[1]
-        new_range_min, new_range_max = new_range
+        new_range_max, new_range_min = new_range
         new_range = new_range[0] - new_range[1]
 
         new_value = ((value - old_range_min) * new_range / old_range) + new_range_min
 
-        return new_value
+        return round(new_value, 2)
 
-    def feed(self, mute=False):
+    def feed(self):
         """"""
         open_ratio, pause_ratio = self.get_opening_ratio()
-        print('Opening to: %s' % open_ratio)
-        print('Pausing for: %s sec\n' % pause_ratio)
+        print('Opening to: %i dregrees.' % int(open_ratio))
+        print('Pausing for: %f sec.\n' % pause_ratio)
 
-        if not mute:
-            self._servo.duty(open_ratio)
-            time.sleep(pause_ratio)
-            self._servo.duty(self._close_position)
+        self._servo.duty(int(open_ratio))
+        time.sleep(pause_ratio)
+        self._servo.duty(self._close_position)
 
 
 if __name__ == "__main__":
     cf = CatFeeder()
+
