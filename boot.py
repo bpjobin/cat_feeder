@@ -5,12 +5,13 @@ from credentials import STATIC_IP
 
 gc.collect()
 
+
 def connect():
 	import network
 
 	sta_if = network.WLAN(network.STA_IF)
 	if not sta_if.isconnected():
-		print ('connecting to network...')
+		print('connecting to network...')
 		sta_if.active(True)
 		if STATIC_IP:
 			sta_if.config(
@@ -29,6 +30,7 @@ def connect():
 def no_debug():
 	import esp
 	esp.osdebug(None)
+
 
 # no_debug()
 connect()

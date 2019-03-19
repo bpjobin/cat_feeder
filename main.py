@@ -7,7 +7,7 @@ from credentials import MQTT_SERVER
 from credentials import MQTT_USERNAME
 from credentials import MQTT_PASSWORD
 
-CLIENT_ID = "cat_feeder_test"
+CLIENT_ID = "cat_feeder"
 
 TOPIC = CLIENT_ID + "/feed"
 STATUS_TOPIC = CLIENT_ID + "/status"
@@ -15,6 +15,7 @@ LAST_FED_TOPIC = CLIENT_ID + "/last_fed"
 DONE_TOPIC = CLIENT_ID + "/done_feeding"
 QTY_BUZZ_TOPIC = CLIENT_ID + "/buzz_quantity"
 QTY_TUXEDO_TOPIC = CLIENT_ID + "/tuxedo_quantity"
+MANUAL_FEEDING = CLIENT_ID + "/manual_feeding"
 
 
 class CatFeeder(object):
@@ -22,32 +23,30 @@ class CatFeeder(object):
         """"""
         self._client = None
         self._button = Pin(14, mode=Pin.IN, pull=Pin.PULL_UP)
+        self._done_payload = 'Done feeding!'
 
         self._servo_buzz = Feeder(
             pin_servo=12,
-            trigger=2,
-            echo=0,
-            open_gate=47,
-            pause=0.35,
+            # trigger=2,
+            # echo=0,
+            # open_gate=47,
+            # pause=0.35,
         )
 
         self._servo_tuxedo = Feeder(
             pin_servo=5,
-            # pin_distance_sensor=XXX,
-            open_gate=45,
-            pause=0.365,
+            trigger=2,
+            echo=0,
+            # open_gate=45,
+            # pause=0.365,
         )
 
         print('Instancing button and servos.')
-
         self._button.irq(
             handler=self.button_pressed,
             trigger=Pin.IRQ_RISING
         )
-
         print('Setting IRQ.')
-
-        self._done_payload = 'Done feeding!'
 
         self.mqtt_connect()
 
@@ -79,23 +78,26 @@ class CatFeeder(object):
         print("Connected to %s, subscribed to %s topic" % (
             MQTT_SERVER,
             TOPIC
+            )
         )
-              )
 
         self._client.publish(STATUS_TOPIC, "Connected", retain=True)
 
-        try:
-            while True:
-                self._client.wait_msg()
-        finally:
-            self._client.disconnect()
+        while True:
+            self._client.wait_msg()
 
     def button_pressed(self, pin):
         if pin.value():
             time.sleep_ms(300)
-            self._servo_tuxedo.feed()
-            self._servo_buzz.feed()
-            self.done_feeding()
+            print('#' * 80)
+            self._client.publish(MANUAL_FEEDING, "")
+
+    def set_open_infos(self, infos):
+        """"""
+        self._servo_buzz.open_position = infos.get("open_buzz")
+        self._servo_tuxedo.open_position = infos.get("open_tuxedo")
+        self._servo_buzz.pause_open = infos.get("pause_buzz")
+        self._servo_tuxedo.pause_open = infos.get("pause_tuxedo")
 
     def on_message(self, topic, message):
         """"""
@@ -103,14 +105,14 @@ class CatFeeder(object):
 
         msg = message.strip().decode('utf-8')
 
-        if msg == "feed":
-            self._client.publish(LAST_FED_TOPIC, "Feeding...")
+        self.set_open_infos(eval(msg))
 
-            try:
-                self._servo_tuxedo.feed()
-                self._servo_buzz.feed()
-            except:
-                self._done_payload = 'Error. Bad message format. Payload was: %s' % msg
+        try:
+            self._client.publish(LAST_FED_TOPIC, "Feeding...")
+            self._servo_tuxedo.feed()
+            self._servo_buzz.feed()
+        except:
+            self._done_payload = 'Error. Bad message format. Payload was: %s' % msg
 
         self.done_feeding()
 
@@ -130,6 +132,7 @@ class CatFeeder(object):
         )
 
         print("Done feeding!\n\n")
+        print('/' * 80)
 
 
 class Feeder(object):
@@ -138,8 +141,8 @@ class Feeder(object):
             pin_servo=None,
             trigger=None,
             echo=None,
-            open_gate=47,
-            pause=0.3,
+            # open_gate=47,
+            # pause=0.3,
     ):
 
         self._open_position = open_gate
@@ -158,6 +161,22 @@ class Feeder(object):
         if self._trigger:
             self._distance_trigger = Pin(trigger, Pin.OUT)
             self._distance_echo = Pin(echo, Pin.IN)
+
+    @property
+    def open_position(self):
+        return float(self._open_position)
+
+    @open_position.setter
+    def open_position(self, value):
+        self._open_position = float(value)
+
+    @property
+    def pause_open(self):
+        return float(self._pause_open)
+
+    @pause_open.setter
+    def pause_open(self, value):
+        self._pause_open = float(value)
 
     @property
     def remaining_quantity(self):
@@ -207,11 +226,11 @@ class Feeder(object):
         # 340 m/s and that is 29 us/cm).
         dist_in_cm = (diff / 2) / 29
 
-        self.distance_cm = -dist_in_cm
-        print("Distance: %s cm." % self.distance_cm)
-        if self.distance_cm > self._empty_quantity:
-            self.distance_cm = self._empty_quantity
-        return self.distance_cm
+        self._distance_cm = -dist_in_cm
+        print("Distance: %s cm." % self._distance_cm)
+        if self._distance_cm > self._empty_quantity:
+            self._distance_cm = self._empty_quantity
+        return self._distance_cm
 
     def get_opening_ratio(self):
         """"""
@@ -251,10 +270,10 @@ class Feeder(object):
     def feed(self):
         """"""
         open_ratio, pause_ratio = self.get_opening_ratio()
-        print('Opening to: %i dregrees.' % int(open_ratio))
+        print('Opening to: %i dregrees.' % open_ratio)
         print('Pausing for: %f sec.\n' % pause_ratio)
 
-        self._servo.duty(int(open_ratio))
+        self._servo.duty(int(round(open_ratio, 0)))
         time.sleep(pause_ratio)
         self._servo.duty(self._close_position)
 
