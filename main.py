@@ -107,6 +107,7 @@ class CatFeeder(object):
         try:
             self._client.publish(LAST_FED_TOPIC, "Feeding...")
             self._servo_tuxedo.feed()
+            time.sleep(1)
             self._servo_buzz.feed()
         except:
             self._done_payload = 'Error. Bad message format. Payload was: %s' % msg
