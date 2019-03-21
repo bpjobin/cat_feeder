@@ -27,18 +27,14 @@ class CatFeeder(object):
 
         self._servo_buzz = Feeder(
             pin_servo=12,
-            # trigger=2,
-            # echo=0,
-            # open_gate=47,
-            # pause=0.35,
+            trigger=2,
+            echo=0,
         )
 
         self._servo_tuxedo = Feeder(
             pin_servo=5,
-            trigger=2,
-            echo=0,
-            # open_gate=45,
-            # pause=0.365,
+            trigger=13,
+            echo=15,
         )
 
         print('Instancing button and servos.')
@@ -91,6 +87,7 @@ class CatFeeder(object):
             time.sleep_ms(300)
             print('#' * 80)
             self._client.publish(MANUAL_FEEDING, "")
+            self._client.wait_msg()
 
     def set_open_infos(self, infos):
         """"""
@@ -118,14 +115,17 @@ class CatFeeder(object):
 
     def done_feeding(self):
         """"""
+        time.sleep(0.2)
         self._client.publish(
             DONE_TOPIC,
             self._done_payload
         )
+        time.sleep(0.2)
         self._client.publish(
             QTY_BUZZ_TOPIC,
             self._servo_buzz.remaining_quantity
         )
+        time.sleep(0.2)
         self._client.publish(
             QTY_TUXEDO_TOPIC,
             self._servo_tuxedo.remaining_quantity
@@ -133,6 +133,8 @@ class CatFeeder(object):
 
         print("Done feeding!\n\n")
         print('/' * 80)
+        print('Waiting for message...')
+        self._client.wait_msg()
 
 
 class Feeder(object):
@@ -141,13 +143,11 @@ class Feeder(object):
             pin_servo=None,
             trigger=None,
             echo=None,
-            # open_gate=47,
-            # pause=0.3,
     ):
 
-        self._open_position = open_gate
+        self._open_position = None
         self._open_position_max = 38
-        self._pause_open = pause
+        self._pause_open = None
         self._pause_open_max = 0.8
         self._close_position = 77
         self._trigger = trigger
@@ -182,6 +182,9 @@ class Feeder(object):
     def remaining_quantity(self):
         """"""
         if not self._trigger:
+            return str(-1)
+
+        if self._distance_cm is None:
             return str(-1)
 
         result = self.map_range(
@@ -270,12 +273,14 @@ class Feeder(object):
     def feed(self):
         """"""
         open_ratio, pause_ratio = self.get_opening_ratio()
-        print('Opening to: %i dregrees.' % open_ratio)
+        print('Opening to: %i degrees.' % open_ratio)
         print('Pausing for: %f sec.\n' % pause_ratio)
 
         self._servo.duty(int(round(open_ratio, 0)))
         time.sleep(pause_ratio)
         self._servo.duty(self._close_position)
+
+        return
 
 
 if __name__ == "__main__":

@@ -16,3 +16,5 @@ pictures/wiring_pics\.tif
 schematics\.fzz
 
 \.idea/
+
+venv/
