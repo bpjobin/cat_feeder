@@ -2,6 +2,7 @@ import gc
 from credentials import SSID
 from credentials import SSID_PASSWORD
 from credentials import STATIC_IP
+from main import CatFeeder
 
 gc.collect()
 
@@ -37,3 +38,5 @@ def no_debug():
 
 # no_debug()
 connect()
+cf = CatFeeder()
+cf.run()

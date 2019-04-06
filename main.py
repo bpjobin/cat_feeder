@@ -22,19 +22,19 @@ class CatFeeder(object):
     def __init__(self):
         """"""
         self._client = None
-        self._button = Pin(14, mode=Pin.IN, pull=Pin.PULL_UP)
+        self._button = Pin(5, mode=Pin.IN, pull=Pin.PULL_UP)
         self._done_payload = 'Done feeding!'
 
         self._servo_buzz = Feeder(
-            pin_servo=12,
-            trigger=2,
-            echo=0,
+            pin_servo=0,
+            trigger=14,
+            echo=2,
         )
 
         self._servo_tuxedo = Feeder(
-            pin_servo=5,
-            trigger=13,
-            echo=15,
+            pin_servo=4,
+            trigger=12,
+            echo=13,
         )
 
         print('Instancing button and servos.')
@@ -43,8 +43,6 @@ class CatFeeder(object):
             trigger=Pin.IRQ_RISING
         )
         print('Setting IRQ.')
-
-        self.mqtt_connect()
 
     def mqtt_connect(self):
         """"""
@@ -87,7 +85,6 @@ class CatFeeder(object):
             time.sleep_ms(300)
             print('#' * 80)
             self._client.publish(MANUAL_FEEDING, "")
-            self._client.wait_msg()
 
     def set_open_infos(self, infos):
         """"""
@@ -103,14 +100,16 @@ class CatFeeder(object):
         msg = message.strip().decode('utf-8')
 
         self.set_open_infos(eval(msg))
+        time.sleep(0.2)
 
-        try:
-            self._client.publish(LAST_FED_TOPIC, "Feeding...")
-            self._servo_tuxedo.feed()
-            time.sleep(1)
-            self._servo_buzz.feed()
-        except:
-            self._done_payload = 'Error. Bad message format. Payload was: %s' % msg
+        self._client.publish(LAST_FED_TOPIC, "Feeding...")
+        time.sleep(0.2)
+        self._servo_buzz.feed()
+        print('fed buzz')
+        time.sleep(1)
+        print('pause 1 sec')
+        self._servo_tuxedo.feed()
+        print('fed tuxedo')
 
         self.done_feeding()
 
@@ -135,7 +134,24 @@ class CatFeeder(object):
         print("Done feeding!\n\n")
         print('/' * 80)
         print('Waiting for message...')
-        self._client.wait_msg()
+        while True:
+            self._client.wait_msg()
+
+    def run(self):
+        self.mqtt_connect()
+
+    def open_close_test(self):
+        """"""
+        self._servo_buzz.open_position = 48
+        self._servo_tuxedo.open_position = 48
+        self._servo_buzz.pause_open = 1
+        self._servo_tuxedo.pause_open = 1
+
+        self._servo_buzz.feed()
+        print('fed buzz')
+        time.sleep(1)
+        print('pause 1 sec')
+        self._servo_tuxedo.feed()
 
 
 class Feeder(object):
@@ -145,7 +161,9 @@ class Feeder(object):
             trigger=None,
             echo=None,
     ):
-
+        """
+        servo's minimum duty 27
+        """
         self._open_position = None
         self._open_position_max = 38
         self._pause_open = None
@@ -157,7 +175,7 @@ class Feeder(object):
         self._empty_quantity = 25
         self._distance_cm = None
 
-        self._servo = PWM(Pin(pin_servo), freq=50, duty=self._close_position)
+        self._servo = PWM(Pin(pin_servo, Pin.OUT), freq=50, duty=self._close_position)
 
         if self._trigger:
             self._distance_trigger = Pin(trigger, Pin.OUT)
@@ -273,17 +291,14 @@ class Feeder(object):
 
     def feed(self):
         """"""
-        open_ratio, pause_ratio = self.get_opening_ratio()
+        # open_ratio, pause_ratio = self.get_opening_ratio()
+        open_ratio, pause_ratio = 47, 1
         print('Opening to: %i degrees.' % open_ratio)
         print('Pausing for: %f sec.\n' % pause_ratio)
 
-        self._servo.duty(int(round(open_ratio, 0)))
+        self._servo.duty(int(round(open_ratio)))
         time.sleep(pause_ratio)
         self._servo.duty(self._close_position)
 
+        # print('Done feeding: %s' % self._servo.__name__)
         return
-
-
-if __name__ == "__main__":
-    cf = CatFeeder()
-
