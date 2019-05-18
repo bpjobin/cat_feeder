@@ -39,4 +39,4 @@ def no_debug():
 # no_debug()
 connect()
 cf = CatFeeder()
-cf.run()
+# cf.run()
